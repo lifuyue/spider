@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CrawlerConfig",
+  "type": "object",
+  "required": ["name", "base_url", "entrypoints", "items", "pipelines"],
+  "properties": {
+    "name": {"type": "string"},
+    "base_url": {"type": "string", "format": "uri"},
+    "allowed_domains": {"type": "array", "items": {"type": "string"}},
+    "robots_policy": {"enum": ["enforce", "warn", "ignore"], "default": "warn"},
+    "request": {
+      "type": "object",
+      "properties": {
+        "headers": {"type": "object", "additionalProperties": {"type": "string"}},
+        "cookies": {"type": "object", "additionalProperties": {"type": "string"}},
+        "timeout_s": {"type": "number", "minimum": 1, "default": 15},
+        "rate_limit": {
+          "type": "object",
+          "properties": {
+            "domain_qps": {"type": "number", "minimum": 0.1, "default": 2},
+            "concurrency": {"type": "integer", "minimum": 1, "default": 8},
+            "burst": {"type": "integer", "minimum": 1, "default": 8}
+          }
+        },
+        "retry": {
+          "type": "object",
+          "properties": {
+            "max_attempts": {"type": "integer", "minimum": 0, "default": 3},
+            "backoff": {"type": "string"}
+          }
+        },
+        "proxy_pool": {"type": "object"},
+        "ua_pool": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "render": {
+      "type": "object",
+      "properties": {
+        "enable": {"type": "boolean", "default": false},
+        "engine": {"enum": ["playwright"]},
+        "routes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["match"],
+            "properties": {
+              "match": {"type": "string"},
+              "wait_for": {"type": "object"},
+              "use": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    },
+    "entrypoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "oneOf": [{"required": ["url"]}, {"required": ["url_template", "range"]}],
+        "properties": {
+          "url": {"type": "string"},
+          "url_template": {"type": "string"},
+          "range": {
+            "type": "object",
+            "properties": {
+              "start": {"type": "integer"},
+              "stop": {"type": "integer"},
+              "step": {"type": "integer", "default": 1}
+            },
+            "required": ["start", "stop"]
+          },
+          "params": {"type": "object"}
+        }
+      }
+    },
+    "pagination": {
+      "type": "object",
+      "properties": {
+        "type": {"enum": ["next_link", "page_param", "infinite_scroll"]},
+        "selector": {"type": "string"},
+        "param": {"type": "string"},
+        "scroll": {
+          "type": "object",
+          "properties": {
+            "times": {"type": "integer"},
+            "delay_ms": {"type": "integer"}
+          }
+        }
+      }
+    },
+    "follow_rules": {
+      "type": "object",
+      "properties": {
+        "allow": {"type": "array", "items": {"type": "string"}},
+        "deny": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "items": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["fields"],
+        "properties": {
+          "match_url": {"type": "string"},
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "from": {"type": "string"},
+                "candidates": {"type": "array", "items": {"type": "object"}},
+                "required": {"type": "boolean", "default": false},
+                "normalize": {"type": "array", "items": {"type": "string"}}
+              }
+            }
+          },
+          "dedupe_keys": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "pipelines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {"enum": ["csv", "jsonl", "db", "es", "kafka"]},
+          "path": {"type": "string"},
+          "driver": {"type": "string"},
+          "dsn": {"type": "string"},
+          "table": {"type": "string"},
+          "upsert_keys": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}
