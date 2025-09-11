@@ -25,26 +25,27 @@ class Extractor:
         except Exception:
             soup = None
 
-        for _name, icfg in cfg.get("items", {}).items():
+        for name, icfg in cfg.get("items", {}).items():
             match = icfg.get("match_url")
             if match and not re.search(match, path):
                 continue
 
-            container_selector = None
-            # Heuristic: if any CSS starts with Douban list container, treat as list page
-            for _field, fcfg in icfg.get("fields", {}).items():
-                for cand in fcfg.get("candidates", []):
-                    sel = cand.get("css")
-                    if isinstance(sel, str) and "ol.grid_view li" in sel:
-                        container_selector = "ol.grid_view li"
+            container_selector = icfg.get("list_selector")
+            if not container_selector:
+                # backward compatible heuristic for Douban list
+                for _field, fcfg in icfg.get("fields", {}).items():
+                    for cand in fcfg.get("candidates", []):
+                        sel = cand.get("css")
+                        if isinstance(sel, str) and "ol.grid_view li" in sel:
+                            container_selector = "ol.grid_view li"
+                            break
+                    if container_selector:
                         break
-                if container_selector:
-                    break
 
             if soup is not None and container_selector:
                 nodes = soup.select(container_selector)
                 for node in nodes:
-                    data: Dict[str, Any] = {}
+                    data: Dict[str, Any] = {"__type__": name}
                     for field, fcfg in icfg.get("fields", {}).items():
                         value = None
                         if fcfg.get("from") == "meta.url":
@@ -58,7 +59,7 @@ class Extractor:
                     items.append(data)
             else:
                 # Fallback: single-item extraction using simplistic CSS/regex rules
-                data: Dict[str, Any] = {}
+                data: Dict[str, Any] = {"__type__": name}
                 for field, fcfg in icfg.get("fields", {}).items():
                     value = None
                     if fcfg.get("from") == "meta.url":

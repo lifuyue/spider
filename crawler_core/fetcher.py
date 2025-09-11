@@ -1,13 +1,15 @@
-import ssl
-import time
-import socket
-import urllib.request
-import urllib.error
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Union
+from __future__ import annotations
 
-# 全局硬超时，避免urllib在某些平台卡死
-socket.setdefaulttimeout(20)
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
+from urllib.parse import urlparse
+
+import httpx
+
+from .logger import info, warn, error
+
 
 @dataclass
 class FetchRequest:
@@ -16,59 +18,120 @@ class FetchRequest:
     method: str = "GET"
     data: Optional[bytes] = None
 
+
 class Fetcher:
-    def __init__(self, cfg: Any, timeout_s: int = 15):
-        self.cfg = cfg
-        self.timeout_s = timeout_s or 15
+    """httpx based fetcher with minimal options."""
+
+    client = httpx.Client(follow_redirects=True)
+
+    def __init__(self, cfg: Any) -> None:
+        req_cfg = (
+            getattr(cfg, "request", {})
+            if hasattr(cfg, "request")
+            else cfg.get("request", {})
+        )
+        self.verify = req_cfg.get("verify", True)
+        self.timeout = req_cfg.get("timeout_s", 15) or 15
         self.default_headers = {
             "User-Agent": "confdriven-crawler/0.1 (+https://example.local)",
             "Accept": "*/*",
         }
 
-    def _build_request(self, req: FetchRequest) -> urllib.request.Request:
-        headers = dict(self.default_headers)
-        if req.headers:
-            headers.update(req.headers)
-        r = urllib.request.Request(req.url, data=req.data, method=req.method)
-        for k, v in headers.items():
-            r.add_header(k, v)
-        return r
-
-    def get(self, req: Union[FetchRequest, Dict[str, Any], str]):
+    # --- helpers ---------------------------------------------------------
+    def _coerce(self, req: Union[FetchRequest, Dict[str, Any], str]) -> FetchRequest:
+        if isinstance(req, FetchRequest):
+            return req
         if isinstance(req, dict):
-            req = FetchRequest(url=req.get("url"), headers=req.get("headers"))
-        elif isinstance(req, str):
-            req = FetchRequest(url=req)
-        elif isinstance(req, FetchRequest):
-            pass
-        elif hasattr(req, "url"):
-            req = FetchRequest(url=getattr(req, "url"))
-        else:
-            req = FetchRequest(url=str(req))
+            return FetchRequest(url=req.get("url", ""), headers=req.get("headers"))
+        if isinstance(req, str):
+            return FetchRequest(url=req)
+        if hasattr(req, "url"):
+            return FetchRequest(url=getattr(req, "url"))
+        return FetchRequest(url=str(req))
 
-        request = self._build_request(req)
-        ctx = ssl.create_default_context()
+    def _file_fetch(self, url: str) -> Dict[str, Any]:
+        path = urlparse(url).path
+        p = Path(path)
+        if not p.exists() and path.startswith("/workspace/spider"):
+            root = Path(__file__).resolve().parent.parent
+            p = root / Path(path).relative_to("/workspace/spider")
+        if not p.exists():
+            error("fetch", url=url, err="FILE_NOT_FOUND")
+            return {"url": url, "error": "file not found", "status": 0, "headers": {}, "content": b"", "text": "", "elapsed": 0.0}
+        start = time.time()
+        body = p.read_bytes()
+        elapsed = time.time() - start
+        info("fetch", url=url, status=200, ms=int(elapsed * 1000))
+        return {
+            "url": url,
+            "status": 200,
+            "headers": {},
+            "content": body,
+            "text": body.decode("utf-8", errors="replace"),
+            "elapsed": elapsed,
+        }
+
+    # --- public API ------------------------------------------------------
+    def get(self, req: Union[FetchRequest, Dict[str, Any], str]):
+        fr = self._coerce(req)
+        url = fr.url
+        if url.startswith("file://"):
+            return self._file_fetch(url)
+
+        headers = dict(self.default_headers)
+        if fr.headers:
+            headers.update(fr.headers)
         start = time.time()
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_s, context=ctx) as resp:  # pragma: no cover - network
-                body = resp.read()
+            resp = self.client.request(
+                fr.method,
+                url,
+                headers=headers,
+                content=fr.data,
+                timeout=self.timeout,
+            )
+        except httpx.HTTPError as e:
+            if (not self.verify) and "certificate" in str(e).lower():
+                warn("fetch", url=url, err="SSL_CERT")
+                try:
+                    resp = self.client.request(
+                        fr.method,
+                        url,
+                        headers=headers,
+                        content=fr.data,
+                        timeout=self.timeout,
+                        verify=False,
+                    )
+                except httpx.HTTPError as e2:
+                    error("fetch", url=url, err="SSL_CERT")
+                    return {
+                        "url": url,
+                        "error": str(e2),
+                        "status": None,
+                        "headers": {},
+                        "content": b"",
+                        "text": "",
+                        "elapsed": time.time() - start,
+                    }
+            else:
+                error("fetch", url=url, err=str(e))
                 return {
-                    "url": req.url,
-                    "status": getattr(resp, "status", 200),
-                    "headers": dict(resp.headers.items()),
-                    "content": body,
-                    "text": body.decode(resp.headers.get_content_charset() or "utf-8", errors="replace"),
+                    "url": url,
+                    "error": str(e),
+                    "status": None,
+                    "headers": {},
+                    "content": b"",
+                    "text": "",
                     "elapsed": time.time() - start,
                 }
-        except KeyboardInterrupt:
-            raise
-        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, socket.timeout) as e:
-            return {
-                "url": req.url,
-                "error": str(e),
-                "status": getattr(e, "code", None),
-                "headers": {},
-                "content": b"",
-                "text": "",
-                "elapsed": time.time() - start,
-            }
+        body = resp.content
+        elapsed = time.time() - start
+        info("fetch", url=url, status=resp.status_code, ms=int(elapsed * 1000))
+        return {
+            "url": url,
+            "status": resp.status_code,
+            "headers": dict(resp.headers),
+            "content": body,
+            "text": body.decode(resp.encoding or "utf-8", errors="replace"),
+            "elapsed": elapsed,
+        }

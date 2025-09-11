@@ -47,6 +47,7 @@ follow_rules:
 items:
   DoubanMovie:
     # 本地离线文件无法匹配原始路径，放宽 URL 限制
+    list_selector: "ol.grid_view li"
     fields:
       url:
         candidates:

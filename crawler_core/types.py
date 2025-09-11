@@ -7,6 +7,7 @@ class Request:
     url: str
     method: str = "GET"
     meta: Dict[str, Any] = field(default_factory=dict)
+    attempts: int = 0
 
 
 @dataclass
