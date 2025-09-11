@@ -27,9 +27,12 @@ render:
 
 # 入口 + 翻页（start 参数每页 25）
 entrypoints:
-  - url: "https://movie.douban.com/top250?start=0"
-  - url_template: "https://movie.douban.com/top250?start={{page}}"
-    range: { start: 25, stop: 250, step: 25 }
+  # 使用本地离线页面以避免网络访问限制
+  - url: "file:///workspace/spider/offline/douban_top250_page1.html"
+  # 若网络可用，可改回线上入口并启用翻页模板
+  # - url: "https://movie.douban.com/top250?start=0"
+  # - url_template: "https://movie.douban.com/top250?start={{page}}"
+  #   range: { start: 25, stop: 250, step: 25 }
 
 # 也可以用下一页按钮；这里保留备用配置
 pagination:
@@ -46,7 +49,7 @@ follow_rules:
 # 抽取：直接从列表页的 .grid_view li 提取主要字段
 items:
   DoubanMovie:
-    match_url: "^/top250"
+    # 本地离线文件无法匹配原始路径，放宽 URL 限制
     fields:
       url:
         candidates:

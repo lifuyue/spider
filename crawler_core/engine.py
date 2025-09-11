@@ -18,6 +18,7 @@ def run(config_path: str, dry_run: bool = False) -> None:
     sinks = [] if dry_run else build_sinks(cfg["pipelines"])
 
     sched.seed(cfg["entrypoints"])
+    total_items = 0
     while sched.has_next():
         req = sched.next()
         try:
@@ -28,9 +29,11 @@ def run(config_path: str, dry_run: bool = False) -> None:
                 if not Dedupe.seen(it, cfg["items"]):
                     for s in sinks:
                         s.emit(it)
+            total_items += len(items)
             sched.enqueue(links)
             telem.mark_success()
         except Exception as e:  # pragma: no cover - simplified error path
             telem.mark_error(e)
             sched.defer(req, e)
+    print(f"parsed {total_items} items, successes={telem.success}, errors={telem.errors}")
 
