@@ -1,4 +1,10 @@
 import argparse
+import pathlib
+import sys
+
+root = pathlib.Path(__file__).resolve().parents[1]
+if str(root) not in sys.path:
+    sys.path.insert(0, str(root))
 
 from crawler_core.engine import run
 

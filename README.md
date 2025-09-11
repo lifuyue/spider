@@ -29,6 +29,20 @@ python runners/run_site.py --config configs/site_demo.yml --dry-run
 - Keep crawl frequency low (config limits QPS) to minimize impact.
 - Do not redistribute or commercialize scraped data.
 
+### 运行说明
+```bash
+# 干跑：仅解析不落盘
+DRY_RUN=true python runners/douban_top250.py
+
+# 或使用通用入口
+python runners/run_site.py --config configs/douban_top250.yml --dry-run
+
+# 实际运行将写入 out/douban_top250.csv
+python runners/douban_top250.py
+```
+
+配置中已将 `request.rate_limit.domain_qps` 设为 `0.5`、`concurrency` 设为 `2`，请勿提升速率；输出目录 `out/` 已在 `.gitignore` 中忽略。
+
 ## Roadmap
 | version | milestone |
 |---------|-----------|
