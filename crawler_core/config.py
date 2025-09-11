@@ -16,7 +16,18 @@ class Config(dict):
 
 def load_and_validate(path: str) -> Config:
     cfg_path = Path(path)
-    data: Dict[str, Any] = json.loads(cfg_path.read_text())
+    raw = cfg_path.read_text()
+    data: Dict[str, Any]
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        # Fallback: allow YAML in .yml/.yaml files
+        try:
+            import yaml  # type: ignore
+
+            data = yaml.safe_load(raw)
+        except Exception as e:  # pragma: no cover - optional dependency path
+            raise ValueError(f"Failed to parse config as JSON or YAML: {e}")
     for field in REQUIRED_FIELDS:
         if field not in data:
             raise ValueError(f"missing field: {field}")

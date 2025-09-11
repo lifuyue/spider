@@ -90,3 +90,14 @@ venv.bak/
 *.tmp
 *.DS_Store
 
+# Platform specific and binaries
+*.dylib
+
+# SQLite files
+*.sqlite
+
+# Crawler outputs
+out/
+
+# macOS metadata
+.DS_Store

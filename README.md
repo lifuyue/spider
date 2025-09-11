@@ -24,6 +24,11 @@ python runners/run_site.py --config configs/site_demo.yml --dry-run
 - Do not crawl protected or private data.
 - Use responsibly and evaluate legal compliance before production use.
 
+## Douban Top 250
+- For learning only; respect Douban site terms and robots.
+- Keep crawl frequency low (config limits QPS) to minimize impact.
+- Do not redistribute or commercialize scraped data.
+
 ## Roadmap
 | version | milestone |
 |---------|-----------|

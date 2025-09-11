@@ -1,0 +1,100 @@
+name: "douban_top250"
+base_url: "https://movie.douban.com"
+allowed_domains: ["movie.douban.com"]
+robots_policy: "warn"    # 练习环境下仅警告；生产请遵循站点条款
+
+request:
+  headers:
+    User-Agent: "{{ ua.random }}"
+    Accept-Language: "zh-CN,zh;q=0.9"
+    Referer: "https://movie.douban.com/top250"
+  timeout_s: 15
+  rate_limit:
+    domain_qps: 0.5         # 放慢速度以示友好（每秒0.5请求）
+    concurrency: 2
+    burst: 2
+  retry:
+    max_attempts: 3
+    backoff: "exponential:0.5..4.0"
+
+# Top250 为静态页，可不启用渲染；保留占位以便未来扩展
+render:
+  enable: false
+  engine: "playwright"
+  routes:
+    - match: "^/subject/\\d+/?$"
+      use: false
+
+# 入口 + 翻页（start 参数每页 25）
+entrypoints:
+  - url: "https://movie.douban.com/top250?start=0"
+  - url_template: "https://movie.douban.com/top250?start={{page}}"
+    range: { start: 25, stop: 250, step: 25 }
+
+# 也可以用下一页按钮；这里保留备用配置
+pagination:
+  type: "next_link"
+  selector: "div.paginator a.next"
+
+# 允许跟进到影片详情页（这次练习先只解析列表项；如需扩展可再写 Item）
+follow_rules:
+  allow:
+    - "^/subject/\\d+/?$"
+  deny:
+    - "accounts/login"
+
+# 抽取：直接从列表页的 .grid_view li 提取主要字段
+items:
+  DoubanMovie:
+    match_url: "^/top250"
+    fields:
+      url:
+        candidates:
+          - { from: "meta.url" }
+      rank:
+        candidates:
+          - { css: "ol.grid_view li .pic em::text" }
+      title:
+        candidates:
+          - { css: "ol.grid_view li .hd a span.title:first-child::text" }
+      title_other:
+        candidates:
+          - { css: "ol.grid_view li .hd a span.other::text" }
+      detail_url:
+        candidates:
+          - { css: "ol.grid_view li .hd a::attr(href)" }
+      cover_url:
+        candidates:
+          - { css: "ol.grid_view li .pic a img::attr(src)" }
+      rating:
+        candidates:
+          - { css: "ol.grid_view li .star .rating_num::text" }
+        normalize: ["to_float"]
+      votes:
+        candidates:
+          # e.g. "123456人评价"
+          - { css: "ol.grid_view li .star span:last-child::text" }
+        normalize: ["regex_extract:(\\d+)", "to_int"]
+      quote:
+        candidates:
+          - { css: "ol.grid_view li .inq::text" }
+      year:
+        candidates:
+          # 年份多在 .bd 的第一行文本里，如 "1994 / 美国 / 剧情 犯罪"
+          - { css: "ol.grid_view li .bd p::text", as: "list" }
+        normalize:
+          - "join: \n "
+          - "regex_extract:(\\d{4})"
+          - "to_int"
+    dedupe_keys: ["detail_url"]
+
+pipelines:
+  - type: "csv"
+    path: "out/douban_top250.csv"
+  # 如需入库，请配置好连接再启用下方 PG sink
+  # - type: "db"
+  #   driver: "postgresql"
+  #   dsn: "postgresql://user:pass@localhost:5432/crawler"
+  #   table: "douban_top250"
+  #   upsert_keys: ["detail_url"]
+
