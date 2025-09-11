@@ -27,12 +27,9 @@ render:
 
 # 入口 + 翻页（start 参数每页 25）
 entrypoints:
-  # 使用本地离线页面以避免网络访问限制
-  - url: "file:///workspace/spider/offline/douban_top250_page1.html"
-  # 若网络可用，可改回线上入口并启用翻页模板
-  # - url: "https://movie.douban.com/top250?start=0"
-  # - url_template: "https://movie.douban.com/top250?start={{page}}"
-  #   range: { start: 25, stop: 250, step: 25 }
+  - url: "https://movie.douban.com/top250?start=0"
+  - url_template: "https://movie.douban.com/top250?start={{page}}"
+    range: { start: 25, stop: 250, step: 25 }
 
 # 也可以用下一页按钮；这里保留备用配置
 pagination:
