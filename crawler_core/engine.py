@@ -8,21 +8,44 @@ from .normalizer import Normalizer
 from .dedupe import Dedupe
 from .pipelines.base import build_sinks
 from .telemetry import Telemetry
+from .types import Response
 
 
 def run(config_path: str, dry_run: bool = False) -> None:
     cfg = load_and_validate(config_path)
+    entrypoints = (
+        getattr(cfg, "entrypoints", [])
+        if hasattr(cfg, "entrypoints")
+        else (cfg.get("entrypoints", []) if isinstance(cfg, dict) else [])
+    )
+    if dry_run:
+        print(
+            f"[dry-run] config OK. entrypoints={len(entrypoints)}. skipping network fetch."
+        )
+        return
+
     telem = Telemetry()
     sched = Scheduler(cfg)
     fetch = Fetcher(cfg)
-    sinks = [] if dry_run else build_sinks(cfg["pipelines"])
+    sinks = build_sinks(cfg["pipelines"])
 
-    sched.seed(cfg["entrypoints"])
+    sched.seed(entrypoints)
     total_items = 0
     while sched.has_next():
         req = sched.next()
         try:
-            resp = fetch.get(req)
+            resp_dict = fetch.get(req)
+            if resp_dict.get("error"):
+                print(
+                    f"[warn] fetch failed for {resp_dict.get('url')}: {resp_dict.get('error')}"
+                )
+                telem.mark_error(Exception(resp_dict.get("error")))
+                continue
+            resp = Response(
+                url=resp_dict.get("url", ""),
+                status=resp_dict.get("status", 0),
+                text=resp_dict.get("text", ""),
+            )
             links, items = Extractor.parse(resp, cfg)
             for it in items:
                 it = Normalizer.run(it, cfg["items"])

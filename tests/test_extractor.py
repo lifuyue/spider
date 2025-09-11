@@ -1,23 +1,25 @@
 from crawler_core.extractor import Extractor
+from crawler_core.extractor import Extractor
 from crawler_core.types import Response
 from crawler_core.config import load_and_validate
 
 
 HTML = """
 <html><body>
-<h1 class="title">Hello World</h1>
-<time datetime="2023-01-02 03:04"></time>
-<article><p>content</p></article>
-<div class="tags"><a>t1</a><a>t2</a></div>
+<div class="quote">
+  <span class="text">“A witty saying proves nothing.”</span>
+  <small class="author">Voltaire</small>
+  <div class="tags"><a class="tag">wit</a><a class="tag">philosophy</a></div>
+</div>
 </body></html>
 """
 
 
 def test_extractor_basic():
     cfg = load_and_validate("configs/site_demo.yml")
-    resp = Response(url="https://news.example.com/article/1", status=200, text=HTML)
+    resp = Response(url="http://quotes.toscrape.com/page/1/", status=200, text=HTML)
     links, items = Extractor.parse(resp, cfg)
-    assert items[0]["title"] == "Hello World"
-    assert items[0]["published_at"] == "2023-01-02 03:04"
-    assert items[0]["tags"] == ["t1", "t2"]
+    assert items[0]["text"] == "“A witty saying proves nothing.”"
+    assert items[0]["author"] == "Voltaire"
+    assert items[0]["tags"] == ["wit", "philosophy"]
 

@@ -1,62 +1,23 @@
 {
-  "name": "example_news",
-  "base_url": "https://news.example.com",
-  "allowed_domains": ["news.example.com"],
-  "robots_policy": "warn",
-  "request": {
-    "headers": {
-      "User-Agent": "Mozilla/5.0",
-      "Accept-Language": "zh-CN,zh;q=0.9"
-    },
-    "rate_limit": {"domain_qps": 2, "concurrency": 8, "burst": 8},
-    "retry": {"max_attempts": 3, "backoff": "exponential:0.5..4.0"}
-  },
-  "render": {
-    "enable": true,
-    "engine": "playwright",
-    "routes": [
-      {"match": "^/article/\\d+", "wait_for": {"selector": "article", "timeout_ms": 8000}},
-      {"match": ".*", "use": false}
-    ]
-  },
+  "name": "quotes_demo",
+  "base_url": "http://quotes.toscrape.com",
   "entrypoints": [
-    {"url": "https://news.example.com/list?page=1"},
-    {"url_template": "https://news.example.com/list?page={{page}}", "range": {"start": 2, "stop": 5}}
+    {"url": "http://quotes.toscrape.com/page/1/"}
   ],
-  "pagination": {"type": "next_link", "selector": "a.next"},
-  "follow_rules": {"allow": ["^/article/\\d+"]},
+  "pagination": {"type": "next_link", "selector": "li.next a"},
   "items": {
-    "Article": {
-      "match_url": "^/article/\\d+",
+    "Quote": {
+      "match_url": "^/page/",
       "fields": {
         "url": {"from": "meta.url"},
-        "title": {
-          "candidates": [
-            {"css": "h1.title::text"},
-            {"xpath": "//meta[@property='og:title']/@content"}
-          ],
-          "required": true
-        },
-        "published_at": {
-          "candidates": [
-            {"css": "time::attr(datetime)"},
-            {"regex": "发布时间[:：]\\s*(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2})"}
-          ],
-          "normalize": ["to_datetime:%Y-%m-%d %H:%M", "to_tz:Asia/Shanghai"]
-        },
-        "content_html": {
-          "candidates": [{"css": "article", "as": "html"}],
-          "normalize": ["sanitize_html", "strip_ads"]
-        },
-        "tags": {
-          "candidates": [{"css": ".tags a::text", "as": "list"}]
-        }
+        "text": {"candidates": [{"css": "span.text::text"}]},
+        "author": {"candidates": [{"css": "small.author::text"}]},
+        "tags": {"candidates": [{"css": ".tags a::text", "as": "list"}]}
       },
-      "dedupe_keys": ["url"]
+      "dedupe_keys": ["url", "text"]
     }
   },
   "pipelines": [
-    {"type": "csv", "path": "out/articles.csv"},
-    {"type": "db", "driver": "postgresql", "dsn": "sqlite:///crawler.db", "table": "articles", "upsert_keys": ["url"]}
+    {"type": "csv", "path": "out/quotes.csv"}
   ]
 }

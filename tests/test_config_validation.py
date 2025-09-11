@@ -8,7 +8,7 @@ from crawler_core.config import load_and_validate
 
 def test_valid_config():
     cfg = load_and_validate("configs/site_demo.yml")
-    assert cfg.name == "example_news"
+    assert cfg.name == "quotes_demo"
 
 
 def test_invalid_config(tmp_path: pathlib.Path):
